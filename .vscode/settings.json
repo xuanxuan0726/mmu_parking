@@ -1,0 +1,16 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "mmu parking",
+            "database": "mmu_parking",
+            "username": "postgres",
+            "password": "xuan1234",
+            "connectionTimeout": 30
+        }
+    ]
+}

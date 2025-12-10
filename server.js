@@ -11,7 +11,7 @@ app.use(express.static('public'));   // Serve the HTML dashboard from the 'publi
 
 // --- 2. DATABASE CONNECTION ---
 // This configures the link to your PostgreSQL database
-const pool = new Pool({
+const db = new Pool({
   user: 'postgres',       // Default PostgreSQL username
   host: 'localhost',      // Database is on this computer
   database: 'mmu_parking',// Your database name
@@ -28,7 +28,7 @@ app.get('/api/entry', async (req, res) => {
 
   try {
     // A. Check if the user is registered
-    const userCheck = await pool.query('SELECT * FROM users WHERE card_uid = $1', [card_uid]);
+    const userCheck = await db.query('SELECT * FROM users WHERE card_uid = $1', [card_uid]);
     
     if (userCheck.rows.length === 0) {
       console.log(`⚠️ Unregistered Card: ${card_uid}`);
@@ -39,7 +39,7 @@ app.get('/api/entry', async (req, res) => {
 
     // B. Check if they are currently Parked (Check-In vs Check-Out)
     // We look for a log entry that has NO check_out time yet
-    const activeSession = await pool.query(
+    const activeSession = await db.query(
       'SELECT * FROM parking_logs WHERE card_uid = $1 AND check_out IS NULL',
       [card_uid]
     );
@@ -55,7 +55,7 @@ app.get('/api/entry', async (req, res) => {
 
     } else {
       // --- CASE 2: CHECK IN (Entry) ---
-      await pool.query('INSERT INTO parking_logs (card_uid) VALUES ($1)', [card_uid]);
+      await db.query('INSERT INTO parking_logs (card_uid) VALUES ($1)', [card_uid]);
       console.log(`🚗 ENTRY: ${user.name}`);
       res.send(`Welcome ${user.name}`);
     }
@@ -78,13 +78,24 @@ app.get('/api/history', async (req, res) => {
       JOIN users ON parking_logs.card_uid = users.card_uid
       ORDER BY parking_logs.id DESC LIMIT 10
     `;
-    const result = await pool.query(query);
+    const result = await db.query(query);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).send("Database Error");
   }
 });
+
+app.get('/', async(req, res) => {
+
+  const response = await db.query('SELECT * FROM users');
+
+  console.log(response.rows)
+
+  res.render('index.ejs', {
+    response: response.rows[1].name
+  })
+})
 
 // --- 5. START SERVER ---
 app.listen(port, () => {
