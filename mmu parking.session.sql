@@ -7,27 +7,28 @@ DROP TABLE IF EXISTS parking_logs;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
-    card_uid VARCHAR(50) PRIMARY KEY,
+    mmu_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100),
-    matrix_id VARCHAR(50),
-    car_plate VARCHAR(20)
+    card_uid VARCHAR(50) UNIQUE,
+    car_plate VARCHAR(20) UNIQUE
 );
 
 CREATE TABLE parking_logs (
-    id SERIAL PRIMARY KEYINSERT INTO parking_logs (id, card_uid, check_in, check_out)
-    VALUES (
-        id:integer,
-        'card_uid:character varying',
-        'check_in:timestamp without time zone',
-        'check_out:timestamp without time zone'
-      );,
-    card_uid VARCHAR(50),
+    check_out TIMESTAMP,
     check_in TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    check_out TIMESTAMP
+    mmu_id VARCHAR(50) REFERENCES users
 );
 
--- Sample Data (So the system isn't empty)
-INSERT INTO users (card_uid, name, matrix_id, car_plate)
-VALUES ('YOUR_REAL_CARD_ID', 'John Doe', '11223344', 'WWA 1234');
+INSERT INTO users (mmu_id, name, card_uid, car_plate) VALUES 
+('1211101234', 'Ahmad Razak', 'A1B2C3D4', 'VCH 8892'),
+('1211105678', 'Siti Nurhaliza', 'E5F6G7H8', 'PPP 7412'),
+('1191100112', 'Tan Ah Teck', 'I9J0K1L2', 'BEM 1010'),
+('1201103344', 'Priya Mohan', 'M3N4O5P6', 'WXC 5566'),
+('1221109988', 'Lee Chong Wei', 'Q7R8S9T0', 'ABC 9999');
 
-ALTER TABLE users RENAME COLUMN matrix_id TO mmu_id;
+-- Normal entries using the IDs created above
+INSERT INTO parking_logs (mmu_id) VALUES
+('1211101234'),
+('1211105678'),
+('1191100112')
+

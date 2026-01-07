@@ -2,24 +2,23 @@
 <html>
 <head>
     <title>MMU Parking Dashboard</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background-color: #f0f2f5; padding: 20px; }
-        h1 { color: #1a237e; }
-        table { margin: 20px auto; border-collapse: collapse; width: 70%; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        th, td { padding: 15px; border-bottom: 1px solid #eee; }
-        th { background-color: #1a237e; color: white; }
-        tr:hover { background-color: #f1f8ff; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>🚗 MMU Live Parking Monitor</h1>
+    <h1>🚗 MMU Parking Admin Dashboard</h1>
     <table id="parkingTable">
-        <tr><th>Log ID</th><th>Car / Card UID</th><th>Entry Time</th></tr>
+        <tr>
+            <th>MMU id</th>
+            <th>Car Plate</th>
+            <th>Check in</th>
+            <th>Check Out</th>
+            <th>Parked Duration</th>
+        </tr>
     </table>
 
     <%= response %>
 
-    <script>
+    <!-- <script>
         async function fetchParkingData() {
             try {
                 const response = await fetch('/api/history');
@@ -40,6 +39,7 @@
         
         setInterval(fetchParkingData, 2000); // Refresh every 2 seconds
         fetchParkingData();
-    </script>
+    </script> -->
+
 </body>
 </html>

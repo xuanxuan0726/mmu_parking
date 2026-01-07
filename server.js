@@ -11,11 +11,19 @@ app.use(express.static('public'));   // Serve the HTML dashboard from the 'publi
 
 // --- 2. DATABASE CONNECTION ---
 // This configures the link to your PostgreSQL database
+// const db = new Pool({
+//   user: 'postgres',       // Default PostgreSQL username
+//   host: 'localhost',      // Database is on this computer
+//   database: 'mmu_parking',// Your database name
+//   password: 'xuan1234',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
+//   port: 5432,             // Default PostgreSQL port
+// });
+
 const db = new Pool({
-  user: 'postgres',       // Default PostgreSQL username
+  user: 'nicho',       // Default PostgreSQL username
   host: 'localhost',      // Database is on this computer
   database: 'mmu_parking',// Your database name
-  password: 'xuan1234',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
+  password: '123',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
   port: 5432,             // Default PostgreSQL port
 });
 
@@ -86,6 +94,15 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
+app.get('/users', async(req, res) => {
+
+  const users = await db.query('SELECT * FROM users');
+
+  res.render('users.ejs', {
+    users: users.rows
+  })
+})
+
 app.get('/', async(req, res) => {
 
   const response = await db.query('SELECT * FROM users');
@@ -93,7 +110,7 @@ app.get('/', async(req, res) => {
   console.log(response.rows)
 
   res.render('index.ejs', {
-    response: response.rows[1].name
+    response: response.rows
   })
 })
 
