@@ -9,37 +9,37 @@
     <table id="parkingTable">
         <tr>
             <th>MMU id</th>
+            <th>User Name</th>
             <th>Car Plate</th>
             <th>Check in</th>
             <th>Check Out</th>
             <th>Parked Duration</th>
         </tr>
+        <% logs.forEach(log => { %>
+            <tr>
+                <td><%= log.mmu_id %></td>
+                <td><%= log.name %></td>
+                <td><%= log.car_plate %></td>
+                <td><%= log.check_in %></td>
+                <td>
+                    <% if (log.check_out === null) { %>
+                        not yet
+                    <% } else { %>
+                        <%= log.check_out %>
+                    <% } %>
+                </td>
+                <td>
+                    <% 
+                        const start = new Date(log.check_in);
+                        const end = log.check_out ? new Date(log.check_out) : new Date();
+                        const diffMs = end - start;
+                        const hours = Math.floor(diffMs / 3600000);
+                        const minutes = Math.floor((diffMs % 3600000) / 60000);
+                    %>
+                    <%= hours %> hrs <%= minutes %> mins
+                </td>
+            </tr>
+        <% }) %>
     </table>
-
-    <%= response %>
-
-    <!-- <script>
-        async function fetchParkingData() {
-            try {
-                const response = await fetch('/api/history');
-                const data = await response.json();
-                const table = document.getElementById('parkingTable');
-                
-                // Reset table but keep header
-                table.innerHTML = "<tr><th>Log ID</th><th>Car / Card UID</th><th>Entry Time</th></tr>";
-                
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    const time = new Date(row.entry_time).toLocaleString();
-                    tr.innerHTML = `<td>${row.id}</td><td><b>${row.card_uid}</b></td><td>${time}</td>`;
-                    table.appendChild(tr);
-                });
-            } catch (e) { console.error("Error fetching data"); }
-        }
-        
-        setInterval(fetchParkingData, 2000); // Refresh every 2 seconds
-        fetchParkingData();
-    </script> -->
-
 </body>
 </html>

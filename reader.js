@@ -19,7 +19,11 @@ var device = new HID.HID(deviceInfo.path);
 console.log("✅ Reader Connected. Ready to scan cars.");
 
 // Wake up the device
-try { device.sendFeatureReport([0x00,0xFF, 0xC7, 0x83, 0xCC, 0x30, 0x00]); } catch (e) {}
+try { 
+    device.sendFeatureReport(
+        [0x00,0xFF, 0xC7, 0x83, 0xCC, 0x30, 0x00]
+    ); 
+} catch (e) {}
 
 device.on('data', function(data) {
     if(data[1] === 0x43 && data[2] === 0x54 && data[6] === 0x45) {

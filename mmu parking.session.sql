@@ -26,9 +26,10 @@ INSERT INTO users (mmu_id, name, card_uid, car_plate) VALUES
 ('1201103344', 'Priya Mohan', 'M3N4O5P6', 'WXC 5566'),
 ('1221109988', 'Lee Chong Wei', 'Q7R8S9T0', 'ABC 9999');
 
--- Normal entries using the IDs created above
 INSERT INTO parking_logs (mmu_id) VALUES
 ('1211101234'),
 ('1211105678'),
 ('1191100112')
 
+INSERT INTO parking_logs (mmu_id) VALUES
+('1221109988')
