@@ -14,7 +14,13 @@ CREATE TABLE users (
 );
 
 CREATE TABLE parking_logs (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEYINSERT INTO parking_logs (id, card_uid, check_in, check_out)
+    VALUES (
+        id:integer,
+        'card_uid:character varying',
+        'check_in:timestamp without time zone',
+        'check_out:timestamp without time zone'
+      );,
     card_uid VARCHAR(50),
     check_in TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     check_out TIMESTAMP
@@ -23,3 +29,5 @@ CREATE TABLE parking_logs (
 -- Sample Data (So the system isn't empty)
 INSERT INTO users (card_uid, name, matrix_id, car_plate)
 VALUES ('YOUR_REAL_CARD_ID', 'John Doe', '11223344', 'WWA 1234');
+
+ALTER TABLE users RENAME COLUMN matrix_id TO mmu_id;
