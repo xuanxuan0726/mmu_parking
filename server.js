@@ -21,10 +21,10 @@ app.use(express.static('public'));   // Serve the HTML dashboard from the 'publi
 // });
 
 const db = new pg.Client({
-  user: 'nicho',       // Default PostgreSQL username
+  user: 'postgres',       // Default PostgreSQL username
   host: 'localhost',      // Database is on this computer
   database: 'mmu_parking',// Your database name
-  password: '123',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
+  password: 'xuan1234',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
   port: 5432,             // Default PostgreSQL port
 });
 
