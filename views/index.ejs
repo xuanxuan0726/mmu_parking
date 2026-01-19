@@ -1,45 +1,10 @@
-<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>MMU Parking Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
 </head>
 <body>
-    <h1>🚗 MMU Parking Admin Dashboard</h1>
-    <table id="parkingTable">
-        <tr>
-            <th>MMU id</th>
-            <th>User Name</th>
-            <th>Car Plate</th>
-            <th>Check in</th>
-            <th>Check Out</th>
-            <th>Parked Duration</th>
-        </tr>
-        <% logs.forEach(log => { %>
-            <tr>
-                <td><%= log.mmu_id %></td>
-                <td><%= log.name %></td>
-                <td><%= log.car_plate %></td>
-                <td><%= log.check_in %></td>
-                <td>
-                    <% if (log.check_out === null) { %>
-                        not yet
-                    <% } else { %>
-                        <%= log.check_out %>
-                    <% } %>
-                </td>
-                <td>
-                    <% 
-                        const start = new Date(log.check_in);
-                        const end = log.check_out ? new Date(log.check_out) : new Date();
-                        const diffMs = end - start;
-                        const hours = Math.floor(diffMs / 3600000);
-                        const minutes = Math.floor((diffMs % 3600000) / 60000);
-                    %>
-                    <%= hours %> hrs <%= minutes %> mins
-                </td>
-            </tr>
-        <% }) %>
-    </table>
+  home
 </body>
 </html>

@@ -2,9 +2,11 @@
 import express from 'express';  // The web server framework
 import pg from 'pg';      // The PostgreSQL driver
 import cors from 'cors';        // Allows the frontend to talk to the backend
+import dotenv from 'dotenv'
 
 const app = express();
 const port = 3000;
+dotenv.config()
 
 // --- 1. MIDDLEWARE ---
 app.use(cors());                     // Enable security clearance for frontend
@@ -21,11 +23,11 @@ app.use(express.static('public'));   // Serve the HTML dashboard from the 'publi
 // });
 
 const db = new pg.Client({
-  user: 'nicho',       // Default PostgreSQL username
-  host: 'localhost',      // Database is on this computer
-  database: 'mmu_parking',// Your database name
-  password: '123',       // <--- CHANGE THIS to your actual password (e.g., 'xuan1234')
-  port: 5432,             // Default PostgreSQL port
+  user: process.env.USER,     
+  host: process.env.HOST,      
+  database: process.env.DATABASE,
+  password: process.env.PASSWORD,  
+  port: process.env.PORT,           
 });
 
 db.connect()
@@ -86,13 +88,17 @@ app.get('/admin-dashboard', async(req, res) => {
       ORDER BY parking_logs.check_in DESC LIMIT 10
     `;
     const logs = await db.query(query);
-    res.render('index.ejs', {
+    res.render('adminDashboard.ejs', {
       logs: logs.rows
     })
   } catch (err) {
     console.error(err);
     res.status(500).send("Database Error");
   }
+})
+
+app.get('/', async(req, res) => {
+  res.render('index.ejs')
 })
 
 // --- 5. START SERVER ---
