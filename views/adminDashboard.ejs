@@ -2,44 +2,119 @@
 <html>
 <head>
     <title>MMU Parking Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; text-align: center; }
+        h1 { color: #1a237e; }
+        table { margin: 20px auto; width: 90%; border-collapse: collapse; background: white; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background-color: #1a237e; color: white; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 10% auto; padding: 20px; width: 400px; border-radius: 8px; text-align: left;}
+        .btn-add { position: absolute; top: 20px; right: 20px; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; cursor: pointer; }
+        input { width: 100%; padding: 8px; margin: 5px 0 15px 0; display: inline-block; border: 1px solid #ccc; box-sizing: border-box; }
+        .btn-submit { background-color: #1a237e; color: white; padding: 10px 15px; border: none; cursor: pointer; width: 100%; }
+        .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    </style>
 </head>
 <body>
     <h1>🚗 MMU Parking Admin Dashboard</h1>
+    
+    <a onclick="document.getElementById('addModal').style.display='block'" class="btn-add">+ Register User</a>
+
     <table id="parkingTable">
         <tr>
-            <th>MMU id</th>
+            <th>MMU ID</th>
             <th>User Name</th>
             <th>Car Plate</th>
-            <th>Check in</th>
+            <th>Check In</th>
             <th>Check Out</th>
-            <th>Parked Duration</th>
+            <th>Duration</th>
         </tr>
         <% logs.forEach(log => { %>
             <tr>
                 <td><%= log.mmu_id %></td>
                 <td><%= log.name %></td>
                 <td><%= log.car_plate %></td>
-                <td><%= log.check_in %></td>
-                <td>
-                    <% if (log.check_out === null) { %>
-                        not yet
-                    <% } else { %>
-                        <%= log.check_out %>
-                    <% } %>
-                </td>
+                <td><%= new Date(log.check_in).toLocaleString() %></td>
+                <td><%= log.check_out ? new Date(log.check_out).toLocaleString() : 'Parked' %></td>
                 <td>
                     <% 
-                        const start = new Date(log.check_in);
-                        const end = log.check_out ? new Date(log.check_out) : new Date();
-                        const diffMs = end - start;
-                        const hours = Math.floor(diffMs / 3600000);
-                        const minutes = Math.floor((diffMs % 3600000) / 60000);
+                        if(log.check_out) {
+                            const diff = new Date(log.check_out) - new Date(log.check_in);
+                            const mins = Math.floor(diff / 60000);
+                            %><%= Math.floor(mins/60) %>h <%= mins%60 %>m<%
+                        } else { %> - <% } 
                     %>
-                    <%= hours %> hrs <%= minutes %> mins
                 </td>
             </tr>
         <% }) %>
     </table>
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span onclick="document.getElementById('addModal').style.display='none'" class="close">&times;</span>
+            <h2>Register New User</h2>
+            <form id="registerForm">
+                <label>MMU ID</label>
+                <input type="text" id="mmu_id" required placeholder="e.g. 11223344">
+
+                <label>Full Name</label>
+                <input type="text" id="name" required placeholder="e.g. Ali bin Abu">
+
+                <label>Car Plate</label>
+                <input type="text" id="car_plate" required placeholder="e.g. WWA 1234">
+
+                <label>Card UID (Scan Card to Auto-fill)</label>
+                <input type="text" id="card_uid" required placeholder="Waiting for scan...">
+
+                <button type="submit" class="btn-submit">💾 Write to Card & Save</button>
+            </form>
+            <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-fill logic: Listen for scans from server? 
+        // For simplicity, user enters ID manually or we assume they scan it.
+        // But for writing, we trigger the reader.
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const status = document.getElementById('statusMsg');
+            const mmuId = document.getElementById('mmu_id').value;
+            const name = document.getElementById('name').value;
+            const plate = document.getElementById('car_plate').value;
+            const cardUid = document.getElementById('card_uid').value;
+
+            status.innerText = "⏳ Writing to RFID Card...";
+
+            try {
+                // 1. Trigger Physical Write (Call reader.js directly)
+                await fetch(`http://localhost:4000/write?mmu_id=${mmuId}`);
+                
+                status.innerText = "💾 Saving to Database...";
+
+                // 2. Save to Database
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mmu_id: mmuId, name: name, car_plate: plate, card_uid: cardUid })
+                });
+
+                if(response.ok) {
+                    alert("User Registered & Card Written!");
+                    location.reload();
+                } else {
+                    const txt = await response.text();
+                    status.innerText = "Error: " + txt;
+                }
+            } catch (err) {
+                status.innerText = "Error connecting to Reader/Server";
+                console.error(err);
+            }
+        });
+    </script>
 </body>
 </html>

@@ -11,6 +11,7 @@ dotenv.config()
 // --- 1. MIDDLEWARE ---
 app.use(cors());                     // Enable security clearance for frontend
 app.use(express.static('public'));   // Serve the HTML dashboard from the 'public' folder
+app.use(express.json()); // Allow server to read JSON from the form
 
 // --- 2. DATABASE CONNECTION ---
 // This configures the link to your PostgreSQL database
@@ -100,6 +101,24 @@ app.get('/admin-dashboard', async(req, res) => {
 app.get('/', async(req, res) => {
   res.render('index.ejs')
 })
+
+app.post('/api/register', async (req, res) => {
+  const { mmu_id, name, car_plate, card_uid } = req.body;
+
+  try {
+    // Save to PostgreSQL
+    const query = `
+      INSERT INTO users (mmu_id, name, car_plate, card_uid)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await db.query(query, [mmu_id, name, car_plate, card_uid]);
+    console.log(`✅ Registered new user: ${name}`);
+    res.send("Success");
+  } catch (err) {
+    console.error("Registration Error:", err);
+    res.status(500).send("Database Error: " + err.detail);
+  }
+});
 
 // --- 5. START SERVER ---
 app.listen(port, () => {
