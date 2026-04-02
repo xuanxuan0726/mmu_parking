@@ -67,7 +67,7 @@
                 <input type="text" id="car_plate" required placeholder="e.g. WWA 1234">
 
                 <label>Card UID (Scan Card to Auto-fill)</label>
-                <input type="text" id="card_uid" required placeholder="Waiting for scan...">
+                <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
 
                 <button type="submit" class="btn-submit">💾 Write to Card & Save</button>
             </form>
@@ -76,22 +76,64 @@
     </div>
 
     <script>
-        // Auto-fill logic: Listen for scans from server? 
-        // For simplicity, user enters ID manually or we assume they scan it.
-        // But for writing, we trigger the reader.
+        let scanInterval;
+
+        // Opens modal and starts listening for a card scan
+        function openModal() {
+            document.getElementById('addModal').style.display='block';
+            document.getElementById('card_uid').value = '';
+            document.getElementById('statusMsg').innerText = 'Please place a new card on the reader...';
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').style.opacity = '0.5';
+
+            scanInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('http://localhost:4000/last-scan');
+                    const data = await response.json();
+                    
+                    if (data.uid) {
+                        document.getElementById('card_uid').value = data.uid;
+                        document.getElementById('statusMsg').innerText = '✅ Card detected! You may now save.';
+                        document.getElementById('statusMsg').style.color = 'green';
+                        
+                        // Enable the submit button once a card is detected
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('submitBtn').style.opacity = '1';
+                    }
+                } catch (e) {
+                    console.log("Waiting for reader...");
+                }
+            }, 1000); // Check every 1 second
+        }
+
+        // Closes modal and stops listening
+        function closeModal() {
+            document.getElementById('addModal').style.display='none';
+            clearInterval(scanInterval);
+        }
 
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Stop scanning while we write
+            clearInterval(scanInterval); 
+
             const status = document.getElementById('statusMsg');
             const mmuId = document.getElementById('mmu_id').value;
             const name = document.getElementById('name').value;
             const plate = document.getElementById('car_plate').value;
             const cardUid = document.getElementById('card_uid').value;
 
-            status.innerText = "⏳ Writing to RFID Card...";
+            if(!cardUid) {
+                alert("Please place a card on the reader first!");
+                return;
+            }
+
+            status.style.color = 'blue';
+            status.innerText = "⏳ Writing MMU ID to RFID Card...";
 
             try {
-                // 1. Trigger Physical Write (Call reader.js directly)
+                // 1. Trigger Physical Write 
                 await fetch(`http://localhost:4000/write?mmu_id=${mmuId}`);
                 
                 status.innerText = "💾 Saving to Database...";
@@ -108,9 +150,11 @@
                     location.reload();
                 } else {
                     const txt = await response.text();
+                    status.style.color = 'red';
                     status.innerText = "Error: " + txt;
                 }
             } catch (err) {
+                status.style.color = 'red';
                 status.innerText = "Error connecting to Reader/Server";
                 console.error(err);
             }
