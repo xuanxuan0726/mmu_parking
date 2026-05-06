@@ -6,11 +6,10 @@
       "server": "localhost",
       "port": 5432,
       "driver": "PostgreSQL",
-      "name": "postgres connection",
+      "name": "mmu_parking",
       "database": "mmu_parking",
-      "username": "postgres",
-      "password": "xuan1234",
-      "connectionTimeout": 30
+      "username": "nicho",
+      "password": "123"
     }
   ]
 }

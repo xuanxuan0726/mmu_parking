@@ -1,11 +1,12 @@
 {
   "name": "mmu_parking",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "MMU Parking FYP Project",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "reader": "node reader.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,8 @@
     "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
     "express": "^5.2.1",
-    "node-hid": "^3.2.0",
+    "node-hid": "git+https://github.com/node-hid/node-hid.git",
+    "node.js": "^0.0.1-security",
     "pg": "^8.16.3"
   },
   "repository": {

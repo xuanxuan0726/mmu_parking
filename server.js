@@ -1,16 +1,16 @@
 // server.js - MMU Parking System Backend
-import express from 'express';  // The web server framework
-import pg from 'pg';      // The PostgreSQL driver
-import cors from 'cors';        // Allows the frontend to talk to the backend
-import dotenv from 'dotenv'
+import express from "express"; // The web server framework
+import pg from "pg"; // The PostgreSQL driver
+import cors from "cors"; // Allows the frontend to talk to the backend
+import dotenv from "dotenv";
 
 const app = express();
 const port = 3000;
-dotenv.config()
+dotenv.config();
 
 // --- 1. MIDDLEWARE ---
-app.use(cors());                     // Enable security clearance for frontend
-app.use(express.static('public'));   // Serve the HTML dashboard from the 'public' folder
+app.use(cors()); // Enable security clearance for frontend
+app.use(express.static("public")); // Serve the HTML dashboard from the 'public' folder
 app.use(express.json()); // Allow server to read JSON from the form
 
 // --- 2. DATABASE CONNECTION ---
@@ -24,26 +24,29 @@ app.use(express.json()); // Allow server to read JSON from the form
 // });
 
 const db = new pg.Client({
-  user: process.env.USER,     
-  host: process.env.HOST,      
+  user: process.env.USER,
+  host: process.env.HOST,
   database: process.env.DATABASE,
-  password: process.env.PASSWORD,  
-  port: process.env.PORT,           
+  password: process.env.PASSWORD,
+  port: process.env.PORT,
 });
 
-db.connect()
+db.connect();
 
 // --- 3. API ROUTE: HANDLE CARD SCANS ---
 // This is triggered when the Hardware Reader scans a card
-app.get('/api/entry', async (req, res) => {
+app.get("/api/entry", async (req, res) => {
   const card_uid = req.query.card; // Get card ID from URL (sent by reader.js)
-  
+
   if (!card_uid) return res.status(400).send("No card ID provided");
 
   try {
     // A. Check if the user is registered
-    const userCheck = await db.query('SELECT * FROM users WHERE card_uid = $1', [card_uid]);
-    
+    const userCheck = await db.query(
+      "SELECT * FROM users WHERE card_uid = $1",
+      [card_uid],
+    );
+
     if (userCheck.rows.length === 0) {
       console.log(`⚠️ Unregistered Card: ${card_uid}`);
       return res.send("Unregistered Card");
@@ -54,33 +57,33 @@ app.get('/api/entry', async (req, res) => {
     // B. Check if they are currently Parked (Check-In vs Check-Out)
     // We look for a log entry that has NO check_out time yet
     const activeSession = await db.query(
-      'SELECT * FROM parking_logs WHERE card_uid = $1 AND check_out IS NULL',
-      [card_uid]
+      "SELECT * FROM parking_logs WHERE card_uid = $1 AND check_out IS NULL",
+      [card_uid],
     );
 
     if (activeSession.rows.length > 0) {
       // --- CASE 1: CHECK OUT (Exit) ---
-      await pool.query(
-        'UPDATE parking_logs SET check_out = CURRENT_TIMESTAMP WHERE id = $1',
-        [activeSession.rows[0].id]
+      await db.query(
+        "UPDATE parking_logs SET check_out = CURRENT_TIMESTAMP WHERE id = $1",
+        [activeSession.rows[0].id],
       );
       console.log(`👋 EXIT: ${user.name}`);
       res.send(`Goodbye ${user.name}`);
-
     } else {
       // --- CASE 2: CHECK IN (Entry) ---
-      await db.query('INSERT INTO parking_logs (card_uid) VALUES ($1)', [card_uid]);
+      await db.query("INSERT INTO parking_logs (card_uid) VALUES ($1)", [
+        card_uid,
+      ]);
       console.log(`🚗 ENTRY: ${user.name}`);
       res.send(`Welcome ${user.name}`);
     }
-
   } catch (err) {
     console.error("Database Error:", err);
     res.status(500).send("Server Error");
   }
 });
 
-app.get('/admin-dashboard', async(req, res) => {
+app.get("/admin-dashboard", async (req, res) => {
   try {
     const query = `
       SELECT users.name, users.mmu_id, users.car_plate, parking_logs.check_in, parking_logs.check_out
@@ -89,20 +92,20 @@ app.get('/admin-dashboard', async(req, res) => {
       ORDER BY parking_logs.check_in DESC LIMIT 10
     `;
     const logs = await db.query(query);
-    res.render('adminDashboard.ejs', {
-      logs: logs.rows
-    })
+    res.render("adminDashboard.ejs", {
+      logs: logs.rows,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send("Database Error");
   }
-})
+});
 
-app.get('/', async(req, res) => {
-  res.render('index.ejs')
-})
+app.get("/", async (req, res) => {
+  res.render("index.ejs");
+});
 
-app.post('/api/register', async (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { mmu_id, name, car_plate, card_uid } = req.body;
 
   try {

@@ -20,8 +20,11 @@
 </head>
 <body>
     <h1>🚗 MMU Parking Admin Dashboard</h1>
+    <div id="readerStatus" style="margin-bottom: 12px; font-size: 0.95rem; color:#333;">
+        Reader Status: <span id="readerStatusValue">Checking...</span>
+    </div>
     
-    <a onclick="document.getElementById('addModal').style.display='block'" class="btn-add">+ Register User</a>
+    <a onclick="openModal()" class="btn-add">+ Register User</a>
 
     <table id="parkingTable">
         <tr>
@@ -54,7 +57,7 @@
 
     <div id="addModal" class="modal">
         <div class="modal-content">
-            <span onclick="document.getElementById('addModal').style.display='none'" class="close">&times;</span>
+            <span onclick="closeModal()" class="close">&times;</span>
             <h2>Register New User</h2>
             <form id="registerForm">
                 <label>MMU ID</label>
@@ -66,10 +69,10 @@
                 <label>Car Plate</label>
                 <input type="text" id="car_plate" required placeholder="e.g. WWA 1234">
 
-                <label>Card UID (Scan Card to Auto-fill)</label>
+                <label>Card UID (Scan Card to Auto-Fill)</label>
                 <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
-
-                <button type="submit" class="btn-submit">💾 Write to Card & Save</button>
+                <button type="button" id="scanButton" class="btn-submit" style="margin-bottom: 10px;">📡 Manual Scan</button>
+                <button id="submitBtn" type="submit" class="btn-submit" disabled style="opacity: 0.5;">💾 Write to Card & Save</button>
             </form>
             <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
         </div>
@@ -77,46 +80,112 @@
 
     <script>
         let scanInterval;
+        let statusPollInterval;
+        const READER_API = 'http://localhost:4000';
 
-        // Opens modal and starts listening for a card scan
-        function openModal() {
-            document.getElementById('addModal').style.display='block';
+        function setReaderStatus(connected) {
+            const statusValue = document.getElementById('readerStatusValue');
+            if (connected) {
+                statusValue.textContent = 'Connected';
+                statusValue.style.color = '#2e7d32';
+            } else {
+                statusValue.textContent = 'Disconnected';
+                statusValue.style.color = '#c62828';
+            }
+        }
+
+        async function fetchReaderStatus() {
+            try {
+                const response = await fetch(`${READER_API}/status`);
+                console.log('Status response:', response.status);
+                if (!response.ok) throw new Error('Status fetch failed');
+                const data = await response.json();
+                console.log('Reader status data:', data);
+                setReaderStatus(Boolean(data.connected));
+                return Boolean(data.connected);
+            } catch (err) {
+                console.error('Reader status fetch error:', err);
+                setReaderStatus(false);
+                return false;
+            }
+        }
+
+        async function fetchLastScan() {
+            try {
+                const response = await fetch(`${READER_API}/last-scan`);
+                if (!response.ok) throw new Error('Scan fetch failed');
+                const data = await response.json();
+                console.log('Last scan data:', data);
+                return data.uid || '';
+            } catch (err) {
+                console.error('Last scan fetch error:', err);
+                return '';
+            }
+        }
+
+        async function openModal() {
+            document.getElementById('addModal').style.display = 'block';
             document.getElementById('card_uid').value = '';
             document.getElementById('statusMsg').innerText = 'Please place a new card on the reader...';
+            document.getElementById('statusMsg').style.color = 'blue';
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('submitBtn').style.opacity = '0.5';
 
+            await fetchReaderStatus();
             scanInterval = setInterval(async () => {
-                try {
-                    const response = await fetch('http://localhost:4000/last-scan');
-                    const data = await response.json();
-                    
-                    if (data.uid) {
-                        document.getElementById('card_uid').value = data.uid;
-                        document.getElementById('statusMsg').innerText = '✅ Card detected! You may now save.';
-                        document.getElementById('statusMsg').style.color = 'green';
-                        
-                        // Enable the submit button once a card is detected
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').style.opacity = '1';
-                    }
-                } catch (e) {
-                    console.log("Waiting for reader...");
+                const cardUid = await fetchLastScan();
+                if (cardUid) {
+                    document.getElementById('card_uid').value = cardUid;
+                    document.getElementById('statusMsg').innerText = '✅ Card detected! You may now save.';
+                    document.getElementById('statusMsg').style.color = 'green';
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('submitBtn').style.opacity = '1';
                 }
-            }, 1000); // Check every 1 second
+            }, 1000);
         }
 
-        // Closes modal and stops listening
         function closeModal() {
-            document.getElementById('addModal').style.display='none';
+            document.getElementById('addModal').style.display = 'none';
             clearInterval(scanInterval);
         }
 
+        document.getElementById('scanButton').addEventListener('click', async () => {
+            const cardUid = await fetchLastScan();
+            const status = document.getElementById('statusMsg');
+            if (cardUid) {
+                document.getElementById('card_uid').value = cardUid;
+                status.style.color = 'green';
+                status.innerText = '✅ Tag read successfully.';
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('submitBtn').style.opacity = '1';
+            } else {
+                // Try manual scan
+                status.style.color = 'blue';
+                status.innerText = '🔍 Triggering manual scan...';
+                try {
+                    await fetch(`${READER_API}/scan`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                    const manualCardUid = await fetchLastScan();
+                    if (manualCardUid) {
+                        document.getElementById('card_uid').value = manualCardUid;
+                        status.style.color = 'green';
+                        status.innerText = '✅ Tag read successfully via manual scan.';
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('submitBtn').style.opacity = '1';
+                    } else {
+                        status.style.color = 'red';
+                        status.innerText = 'No tag detected. Try repositioning the tag closer to the reader.';
+                    }
+                } catch (err) {
+                    status.style.color = 'red';
+                    status.innerText = 'Manual scan failed. Check reader connection.';
+                }
+            }
+        });
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            // Stop scanning while we write
-            clearInterval(scanInterval); 
+            clearInterval(scanInterval);
 
             const status = document.getElementById('statusMsg');
             const mmuId = document.getElementById('mmu_id').value;
@@ -124,41 +193,45 @@
             const plate = document.getElementById('car_plate').value;
             const cardUid = document.getElementById('card_uid').value;
 
-            if(!cardUid) {
-                alert("Please place a card on the reader first!");
+            if (!cardUid) {
+                alert('Please place a card on the reader first!');
                 return;
             }
 
             status.style.color = 'blue';
-            status.innerText = "⏳ Writing MMU ID to RFID Card...";
+            status.innerText = '⏳ Writing MMU ID to RFID Card...';
 
             try {
-                // 1. Trigger Physical Write 
-                await fetch(`http://localhost:4000/write?mmu_id=${mmuId}`);
-                
-                status.innerText = "💾 Saving to Database...";
+                await fetch(`${READER_API}/write?mmu_id=${encodeURIComponent(mmuId)}`);
+                status.innerText = '💾 Saving to Database...';
 
-                // 2. Save to Database
                 const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mmu_id: mmuId, name: name, car_plate: plate, card_uid: cardUid })
+                    body: JSON.stringify({ mmu_id: mmuId, name, car_plate: plate, card_uid: cardUid })
                 });
 
-                if(response.ok) {
-                    alert("User Registered & Card Written!");
+                if (response.ok) {
+                    alert('User Registered & Card Written!');
                     location.reload();
                 } else {
                     const txt = await response.text();
                     status.style.color = 'red';
-                    status.innerText = "Error: " + txt;
+                    status.innerText = 'Error: ' + txt;
                 }
             } catch (err) {
                 status.style.color = 'red';
-                status.innerText = "Error connecting to Reader/Server";
+                status.innerText = 'Error connecting to Reader/Server';
                 console.error(err);
             }
         });
+
+        async function startStatusPoll() {
+            await fetchReaderStatus();
+            statusPollInterval = setInterval(fetchReaderStatus, 3000);
+        }
+
+        startStatusPoll();
     </script>
 </body>
 </html>
