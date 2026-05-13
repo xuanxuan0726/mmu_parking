@@ -72,6 +72,7 @@
                 <label>Card UID (Scan Card to Auto-Fill)</label>
                 <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
                 <button type="button" id="scanButton" class="btn-submit" style="margin-bottom: 10px;">📡 Manual Scan</button>
+                <button type="button" id="readButton" class="btn-submit" style="margin-bottom: 10px; background-color:#555;">📖 Read Tag Memory</button>
                 <button id="submitBtn" type="submit" class="btn-submit" disabled style="opacity: 0.5;">💾 Write to Card & Save</button>
             </form>
             <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
@@ -130,6 +131,7 @@
             document.getElementById('statusMsg').style.color = 'blue';
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('submitBtn').style.opacity = '0.5';
+            entryPollEnabled = false; // pause toll-gate polling while registering
 
             await fetchReaderStatus();
             scanInterval = setInterval(async () => {
@@ -147,6 +149,7 @@
         function closeModal() {
             document.getElementById('addModal').style.display = 'none';
             clearInterval(scanInterval);
+            entryPollEnabled = true; // resume toll-gate polling
         }
 
         document.getElementById('scanButton').addEventListener('click', async () => {
@@ -183,6 +186,26 @@
             }
         });
 
+        document.getElementById('readButton').addEventListener('click', async () => {
+            const status = document.getElementById('statusMsg');
+            status.style.color = 'blue';
+            status.innerText = '📖 Reading tag user memory...';
+            try {
+                const r = await fetch(`${READER_API}/read`);
+                const data = await r.json();
+                if (data.ok) {
+                    status.style.color = 'green';
+                    status.innerText = `📖 Tag contains → Name: "${data.name}", MMU ID: "${data.mmu_id}", Plate: "${data.car_plate}"`;
+                } else {
+                    status.style.color = 'orange';
+                    status.innerText = '⚠️ Read returned no decoded payload. Raw: ' + (data.raw || data.error || 'unknown');
+                }
+            } catch (err) {
+                status.style.color = 'red';
+                status.innerText = '❌ Read failed: ' + err.message;
+            }
+        });
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             clearInterval(scanInterval);
@@ -199,10 +222,20 @@
             }
 
             status.style.color = 'blue';
-            status.innerText = '⏳ Writing MMU ID to RFID Card...';
+            status.innerText = '⏳ Writing name, MMU ID and plate to RFID tag...';
 
             try {
-                await fetch(`${READER_API}/write?mmu_id=${encodeURIComponent(mmuId)}`);
+                const writeRes = await fetch(`${READER_API}/write`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, mmu_id: mmuId, car_plate: plate })
+                });
+                if (!writeRes.ok) {
+                    const errTxt = await writeRes.text();
+                    status.style.color = 'red';
+                    status.innerText = '❌ Tag write failed: ' + errTxt;
+                    return;
+                }
                 status.innerText = '💾 Saving to Database...';
 
                 const response = await fetch('/api/register', {
@@ -231,7 +264,33 @@
             statusPollInterval = setInterval(fetchReaderStatus, 3000);
         }
 
+        // ---- Toll-gate entry poller ----
+        // Tap tag -> /api/entry toggles check-in / check-out -> table refreshes.
+        // Debounce same UID for 5s so holding the tag on the reader doesn't oscillate.
+        let entryPollEnabled = true;
+        let lastEntryUid = '';
+        let lastEntryAt = 0;
+        const ENTRY_DEBOUNCE_MS = 5000;
+
+        async function pollEntry() {
+            if (!entryPollEnabled) return;
+            const uid = await fetchLastScan();
+            if (!uid) return;
+            if (uid === lastEntryUid && Date.now() - lastEntryAt < ENTRY_DEBOUNCE_MS) return;
+            lastEntryUid = uid;
+            lastEntryAt = Date.now();
+            try {
+                const r = await fetch(`/api/entry?card=${encodeURIComponent(uid)}`);
+                const msg = await r.text();
+                console.log('Entry result:', msg);
+                setTimeout(() => location.reload(), 800);
+            } catch (err) {
+                console.error('Entry call failed:', err);
+            }
+        }
+
         startStatusPoll();
+        setInterval(pollEntry, 1000);
     </script>
 </body>
 </html>

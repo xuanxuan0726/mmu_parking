@@ -24,14 +24,20 @@ app.use(express.json()); // Allow server to read JSON from the form
 // });
 
 const db = new pg.Client({
-  user: process.env.USER,
-  host: process.env.HOST,
-  database: process.env.DATABASE,
-  password: process.env.PASSWORD,
-  port: process.env.PORT,
+  user: 'postgres',
+  host: '127.0.0.1',       // Using the direct IP to avoid Windows translation errors
+  database: 'mmu_parking', // Make sure this matches pgAdmin exactly
+  password: 'xuan123',    // Your pgAdmin password
+  port: 5432,
 });
 
-db.connect();
+db.connect((err) => {
+  if (err) {
+    console.error('❌ Database connection failed:', err.stack);
+  } else {
+    console.log('✅ Connected to PostgreSQL successfully!');
+  }
+});
 
 // --- 3. API ROUTE: HANDLE CARD SCANS ---
 // This is triggered when the Hardware Reader scans a card
@@ -71,9 +77,10 @@ app.get("/api/entry", async (req, res) => {
       res.send(`Goodbye ${user.name}`);
     } else {
       // --- CASE 2: CHECK IN (Entry) ---
-      await db.query("INSERT INTO parking_logs (card_uid) VALUES ($1)", [
-        card_uid,
-      ]);
+      await db.query(
+        "INSERT INTO parking_logs (card_uid, mmu_id) VALUES ($1, $2)",
+        [card_uid, user.mmu_id],
+      );
       console.log(`🚗 ENTRY: ${user.name}`);
       res.send(`Welcome ${user.name}`);
     }
