@@ -69,11 +69,11 @@
                 <label>Car Plate</label>
                 <input type="text" id="car_plate" required placeholder="e.g. WWA 1234">
 
-                <label>Card UID (Scan Card to Auto-Fill)</label>
+                <label>Card/Tag UID (Scan Card/Tag to Auto-Fill)</label>
                 <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
                 <button type="button" id="scanButton" class="btn-submit" style="margin-bottom: 10px;">📡 Manual Scan</button>
                 <button type="button" id="readButton" class="btn-submit" style="margin-bottom: 10px; background-color:#555;">📖 Read Tag Memory</button>
-                <button id="submitBtn" type="submit" class="btn-submit" disabled style="opacity: 0.5;">💾 Write to Card & Save</button>
+                <button id="submitBtn" type="submit" class="btn-submit" disabled style="opacity: 0.5;">💾 Write to Card/Tag & Save</button>
             </form>
             <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
         </div>
@@ -127,7 +127,7 @@
         async function openModal() {
             document.getElementById('addModal').style.display = 'block';
             document.getElementById('card_uid').value = '';
-            document.getElementById('statusMsg').innerText = 'Please place a new card on the reader...';
+            document.getElementById('statusMsg').innerText = 'Please place a new card/tag on the reader...';
             document.getElementById('statusMsg').style.color = 'blue';
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('submitBtn').style.opacity = '0.5';
@@ -217,7 +217,7 @@
             const cardUid = document.getElementById('card_uid').value;
 
             if (!cardUid) {
-                alert('Please place a card on the reader first!');
+                alert('Please place a card/tag on the reader first!');
                 return;
             }
 
@@ -245,7 +245,7 @@
                 });
 
                 if (response.ok) {
-                    alert('User Registered & Card Written!');
+                    alert('User Registered & Card/Tag Written!');
                     location.reload();
                 } else {
                     const txt = await response.text();
