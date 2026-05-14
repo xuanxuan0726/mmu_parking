@@ -73,7 +73,10 @@
                 <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
                 <button type="button" id="scanButton" class="btn-submit" style="margin-bottom: 10px;">📡 Manual Scan</button>
                 <button type="button" id="readButton" class="btn-submit" style="margin-bottom: 10px; background-color:#555;">📖 Read Tag Memory</button>
-                <button id="submitBtn" type="submit" class="btn-submit" disabled style="opacity: 0.5;">💾 Write to Card/Tag & Save</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" id="writeBtn" class="btn-submit" disabled style="opacity: 0.5; flex: 1;">✍️ Write Tag</button>
+                    <button type="button" id="saveBtn" class="btn-submit" disabled style="opacity: 0.5; flex: 1; background-color:#28a745;">💾 Save Data</button>
+                </div>
             </form>
             <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
         </div>
@@ -124,13 +127,20 @@
             }
         }
 
+        function setActionButtons(enabled) {
+            for (const id of ['writeBtn', 'saveBtn']) {
+                const b = document.getElementById(id);
+                b.disabled = !enabled;
+                b.style.opacity = enabled ? '1' : '0.5';
+            }
+        }
+
         async function openModal() {
             document.getElementById('addModal').style.display = 'block';
             document.getElementById('card_uid').value = '';
             document.getElementById('statusMsg').innerText = 'Please place a new card/tag on the reader...';
             document.getElementById('statusMsg').style.color = 'blue';
-            document.getElementById('submitBtn').disabled = true;
-            document.getElementById('submitBtn').style.opacity = '0.5';
+            setActionButtons(false);
             entryPollEnabled = false; // pause toll-gate polling while registering
 
             await fetchReaderStatus();
@@ -138,10 +148,9 @@
                 const cardUid = await fetchLastScan();
                 if (cardUid) {
                     document.getElementById('card_uid').value = cardUid;
-                    document.getElementById('statusMsg').innerText = '✅ Card detected! You may now save.';
+                    document.getElementById('statusMsg').innerText = '✅ Card detected! Write the tag, then save.';
                     document.getElementById('statusMsg').style.color = 'green';
-                    document.getElementById('submitBtn').disabled = false;
-                    document.getElementById('submitBtn').style.opacity = '1';
+                    setActionButtons(true);
                 }
             }, 1000);
         }
@@ -159,8 +168,7 @@
                 document.getElementById('card_uid').value = cardUid;
                 status.style.color = 'green';
                 status.innerText = '✅ Tag read successfully.';
-                document.getElementById('submitBtn').disabled = false;
-                document.getElementById('submitBtn').style.opacity = '1';
+                setActionButtons(true);
             } else {
                 // Try manual scan
                 status.style.color = 'blue';
@@ -173,8 +181,7 @@
                         document.getElementById('card_uid').value = manualCardUid;
                         status.style.color = 'green';
                         status.innerText = '✅ Tag read successfully via manual scan.';
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').style.opacity = '1';
+                        setActionButtons(true);
                     } else {
                         status.style.color = 'red';
                         status.innerText = 'No tag detected. Try repositioning the tag closer to the reader.';
@@ -206,56 +213,69 @@
             }
         });
 
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            clearInterval(scanInterval);
+        function getFormFields() {
+            return {
+                mmu_id:    document.getElementById('mmu_id').value.trim(),
+                name:      document.getElementById('name').value.trim(),
+                car_plate: document.getElementById('car_plate').value.trim(),
+                card_uid:  document.getElementById('card_uid').value.trim(),
+            };
+        }
 
+        document.getElementById('writeBtn').addEventListener('click', async () => {
             const status = document.getElementById('statusMsg');
-            const mmuId = document.getElementById('mmu_id').value;
-            const name = document.getElementById('name').value;
-            const plate = document.getElementById('car_plate').value;
-            const cardUid = document.getElementById('card_uid').value;
-
-            if (!cardUid) {
-                alert('Please place a card/tag on the reader first!');
-                return;
-            }
+            const { mmu_id, name, car_plate, card_uid } = getFormFields();
+            if (!card_uid) { alert('Place a card/tag on the reader first!'); return; }
+            if (!mmu_id || !name || !car_plate) { alert('Fill MMU ID, Name and Car Plate first!'); return; }
 
             status.style.color = 'blue';
-            status.innerText = '⏳ Writing name, MMU ID and plate to RFID tag...';
-
+            status.innerText = '✍️ Writing to RFID tag...';
             try {
-                const writeRes = await fetch(`${READER_API}/write`, {
+                const res = await fetch(`${READER_API}/write`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, mmu_id: mmuId, car_plate: plate })
+                    body: JSON.stringify({ name, mmu_id, car_plate })
                 });
-                if (!writeRes.ok) {
-                    const errTxt = await writeRes.text();
-                    status.style.color = 'red';
-                    status.innerText = '❌ Tag write failed: ' + errTxt;
-                    return;
-                }
-                status.innerText = '💾 Saving to Database...';
-
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mmu_id: mmuId, name, car_plate: plate, card_uid: cardUid })
-                });
-
-                if (response.ok) {
-                    alert('User Registered & Card/Tag Written!');
-                    location.reload();
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    status.style.color = 'green';
+                    status.innerText = `✅ Tag written (${data.bytes} bytes). Verify with Read Tag Memory, then click Save Data.`;
                 } else {
-                    const txt = await response.text();
                     status.style.color = 'red';
-                    status.innerText = 'Error: ' + txt;
+                    status.innerText = '❌ Tag write failed: ' + (data.error || res.statusText);
                 }
             } catch (err) {
                 status.style.color = 'red';
-                status.innerText = 'Error connecting to Reader/Server';
-                console.error(err);
+                status.innerText = '❌ Reader unreachable: ' + err.message;
+            }
+        });
+
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            const status = document.getElementById('statusMsg');
+            const { mmu_id, name, car_plate, card_uid } = getFormFields();
+            if (!card_uid) { alert('Place a card/tag on the reader first!'); return; }
+            if (!mmu_id || !name || !car_plate) { alert('Fill MMU ID, Name and Car Plate first!'); return; }
+
+            status.style.color = 'blue';
+            status.innerText = '💾 Saving to database...';
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mmu_id, name, car_plate, card_uid })
+                });
+                if (res.ok) {
+                    clearInterval(scanInterval);
+                    alert('✅ User saved to database.');
+                    location.reload();
+                } else {
+                    const txt = await res.text();
+                    status.style.color = 'red';
+                    status.innerText = '❌ Save failed: ' + txt;
+                }
+            } catch (err) {
+                status.style.color = 'red';
+                status.innerText = '❌ Server unreachable: ' + err.message;
             }
         });
 
