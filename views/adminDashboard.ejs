@@ -156,12 +156,19 @@
             }
         }
 
-        function setActionButtons(enabled) {
-            for (const id of ['writeBtn', 'saveBtn']) {
-                const b = document.getElementById(id);
-                b.disabled = !enabled;
-                b.style.opacity = enabled ? '1' : '0.5';
-            }
+        function setBtnEnabled(id, enabled) {
+            const b = document.getElementById(id);
+            b.disabled = !enabled;
+            b.style.opacity = enabled ? '1' : '0.5';
+        }
+        function setWriteEnabled(enabled) { setBtnEnabled('writeBtn', enabled); }
+        function setSaveEnabled(enabled)  { setBtnEnabled('saveBtn',  enabled); }
+
+        // If any of the registration fields changes after a successful write,
+        // the tag no longer matches the form — re-lock Save so we never commit
+        // mismatched data to the DB.
+        for (const id of ['mmu_id', 'name', 'car_plate']) {
+            document.getElementById(id).addEventListener('input', () => setSaveEnabled(false));
         }
 
         async function openModal() {
@@ -169,7 +176,8 @@
             document.getElementById('card_uid').value = '';
             document.getElementById('statusMsg').innerText = 'Please place a new card/tag on the reader...';
             document.getElementById('statusMsg').style.color = 'blue';
-            setActionButtons(false);
+            setWriteEnabled(false);
+            setSaveEnabled(false);
             entryPollEnabled = false; // pause toll-gate polling while registering
 
             await fetchReaderStatus();
@@ -179,7 +187,7 @@
                     document.getElementById('card_uid').value = cardUid;
                     document.getElementById('statusMsg').innerText = '✅ Card detected! Write the tag, then save.';
                     document.getElementById('statusMsg').style.color = 'green';
-                    setActionButtons(true);
+                    setWriteEnabled(true);
                 }
             }, 1000);
         }
@@ -197,7 +205,7 @@
                 document.getElementById('card_uid').value = cardUid;
                 status.style.color = 'green';
                 status.innerText = '✅ Tag read successfully.';
-                setActionButtons(true);
+                setWriteEnabled(true);
             } else {
                 // Try manual scan
                 status.style.color = 'blue';
@@ -210,7 +218,7 @@
                         document.getElementById('card_uid').value = manualCardUid;
                         status.style.color = 'green';
                         status.innerText = '✅ Tag read successfully via manual scan.';
-                        setActionButtons(true);
+                        setWriteEnabled(true);
                     } else {
                         status.style.color = 'red';
                         status.innerText = 'No tag detected. Try repositioning the tag closer to the reader.';
@@ -268,10 +276,12 @@
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.ok) {
                     status.style.color = 'green';
-                    status.innerText = `✅ Tag written (${data.bytes} bytes). Verify with Read Tag Memory, then click Save Data.`;
+                    status.innerText = `✅ Tag written & verified (${data.bytes} bytes). You can now Save Data.`;
+                    setSaveEnabled(true);
                 } else {
                     status.style.color = 'red';
                     status.innerText = '❌ Tag write failed: ' + (data.error || res.statusText);
+                    setSaveEnabled(false);
                 }
             } catch (err) {
                 status.style.color = 'red';
