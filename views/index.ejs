@@ -1,10 +1,136 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>MMU Parking — Available Spaces</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      background: white;
+      color: black;
+      overflow: hidden;
+    }
+    .wrap {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .label {
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.85;
+      margin-bottom: 16px;
+    }
+    .count {
+      font-size: clamp(8rem, 28vw, 24rem);
+      font-weight: 800;
+      line-height: 1;
+      color: #4ade80;
+      text-shadow: 0 6px 30px rgba(74, 222, 128, 0.35);
+      transition: color 0.3s ease, transform 0.2s ease;
+    }
+    .count.low  { color: #fbbf24; text-shadow: 0 6px 30px rgba(251, 191, 36, 0.35); }
+    .count.full { color: #ef4444; text-shadow: 0 6px 30px rgba(239, 68, 68, 0.45); }
+    .count.flash { transform: scale(1.06); }
+    .sub {
+      margin-top: 12px;
+      font-size: clamp(1rem, 2.5vw, 1.6rem);
+      opacity: 0.7;
+    }
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(6px);
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-size: 1.1rem;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .toast.show { opacity: 1; }
+  </style>
 </head>
 <body>
-  home
+  <div class="wrap">
+    <div class="label">Available Parking</div>
+    <div id="count" class="count"><%= available %></div>
+    <div class="sub">of <span id="total"><%= total %></span> total</div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const READER_API = 'http://localhost:4000';
+    const countEl = document.getElementById('count');
+    const totalEl = document.getElementById('total');
+    const toastEl = document.getElementById('toast');
+
+    let lastAvailable = parseInt(countEl.textContent, 10);
+
+    function applyColorTier(available, total) {
+      countEl.classList.remove('low', 'full');
+      if (available === 0)               countEl.classList.add('full');
+      else if (available / total < 0.2)  countEl.classList.add('low');
+    }
+
+    function flash(text) {
+      countEl.classList.add('flash');
+      setTimeout(() => countEl.classList.remove('flash'), 200);
+      if (text) {
+        toastEl.textContent = text;
+        toastEl.classList.add('show');
+        setTimeout(() => toastEl.classList.remove('show'), 2500);
+      }
+    }
+
+    async function refreshCount() {
+      try {
+        const r = await fetch('/api/parking-count');
+        const data = await r.json();
+        totalEl.textContent = data.total;
+        if (data.available !== lastAvailable) {
+          const delta = data.available - lastAvailable;
+          flash(delta < 0 ? '🚗 Vehicle entered' : '👋 Vehicle exited');
+          lastAvailable = data.available;
+          countEl.textContent = data.available;
+        }
+        applyColorTier(data.available, data.total);
+      } catch (err) {
+        console.error('Count fetch failed:', err);
+      }
+    }
+
+    // ---- Toll-gate entry poller ----
+    // Read taps from the reader and call /api/entry. Server applies its own
+    // 5-second per-card cooldown so a tag left on the antenna can't bounce.
+    async function pollEntry() {
+      try {
+        const r = await fetch(`${READER_API}/last-scan`);
+        const data = await r.json();
+        const uid = data.uid || '';
+        if (!uid) return;
+        await fetch(`/api/entry?card=${encodeURIComponent(uid)}`);
+        // Refresh count shortly after — give DB the moment it needs.
+        setTimeout(refreshCount, 300);
+      } catch (err) {
+        console.error('Entry poll failed:', err);
+      }
+    }
+
+    applyColorTier(lastAvailable, parseInt(totalEl.textContent, 10));
+    setInterval(refreshCount, 1500);
+    setInterval(pollEntry, 1000);
+  </script>
 </body>
 </html>

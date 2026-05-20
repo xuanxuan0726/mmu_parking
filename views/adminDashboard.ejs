@@ -259,32 +259,45 @@
         }
 
         // ---- Toll-gate entry poller ----
-        // Tap tag -> /api/entry toggles check-in / check-out -> table refreshes.
-        // Debounce same UID for 5s so holding the tag on the reader doesn't oscillate.
+        // Tap tag -> /api/entry toggles check-in / check-out.
+        // Debounced server-side, so we don't need to worry about a tag bouncing.
         let entryPollEnabled = true;
-        let lastEntryUid = '';
-        let lastEntryAt = 0;
-        const ENTRY_DEBOUNCE_MS = 5000;
 
         async function pollEntry() {
             if (!entryPollEnabled) return;
             const uid = await fetchLastScan();
             if (!uid) return;
-            if (uid === lastEntryUid && Date.now() - lastEntryAt < ENTRY_DEBOUNCE_MS) return;
-            lastEntryUid = uid;
-            lastEntryAt = Date.now();
             try {
                 const r = await fetch(`/api/entry?card=${encodeURIComponent(uid)}`);
                 const msg = await r.text();
                 console.log('Entry result:', msg);
-                setTimeout(() => location.reload(), 800);
             } catch (err) {
                 console.error('Entry call failed:', err);
             }
         }
 
+        // ---- Count-change watcher ----
+        // Reloads the table whenever the DB-level occupancy changes — works
+        // regardless of which page (kiosk or dashboard) actually drove the tap.
+        // Baseline is the count at server-render time (not at first poll), so
+        // any tap between page-render and the first poll still triggers a reload.
+        let lastKnownOccupied = <%= occupiedAtRender %>;
+        async function pollCount() {
+            if (!entryPollEnabled) return; // pause during registration modal
+            try {
+                const r = await fetch('/api/parking-count');
+                const data = await r.json();
+                if (data.occupied !== lastKnownOccupied) {
+                    location.reload();
+                }
+            } catch (err) {
+                console.error('Count poll failed:', err);
+            }
+        }
+
         startStatusPoll();
         setInterval(pollEntry, 1000);
+        setInterval(pollCount, 1500);
     </script>
 </body>
 </html>

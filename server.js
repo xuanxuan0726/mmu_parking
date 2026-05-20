@@ -39,12 +39,26 @@ db.connect((err) => {
   }
 });
 
+// Total physical parking spaces in the MMU lot.
+const TOTAL_SPACES = 100;
+
+// Per-card cooldown so a tag left on the reader doesn't toggle entry/exit
+// every second. JS-side debounce can't be trusted because pages reload.
+const recentEntries = new Map(); // card_uid -> last-processed timestamp (ms)
+const ENTRY_COOLDOWN_MS = 5000;
+
 // --- 3. API ROUTE: HANDLE CARD SCANS ---
 // This is triggered when the Hardware Reader scans a card
 app.get("/api/entry", async (req, res) => {
   const card_uid = req.query.card; // Get card ID from URL (sent by reader.js)
 
   if (!card_uid) return res.status(400).send("No card ID provided");
+
+  const lastAt = recentEntries.get(card_uid);
+  if (lastAt && Date.now() - lastAt < ENTRY_COOLDOWN_MS) {
+    return res.send("Cooldown — please lift the tag before tapping again");
+  }
+  recentEntries.set(card_uid, Date.now());
 
   try {
     // A. Check if the user is registered
@@ -94,13 +108,18 @@ app.get("/admin-dashboard", async (req, res) => {
   try {
     const query = `
       SELECT users.name, users.mmu_id, users.car_plate, parking_logs.check_in, parking_logs.check_out
-      FROM parking_logs JOIN users 
+      FROM parking_logs JOIN users
       ON parking_logs.mmu_id = users.mmu_id
       ORDER BY parking_logs.check_in DESC LIMIT 10
     `;
     const logs = await db.query(query);
+    const countResult = await db.query(
+      "SELECT COUNT(*) FROM parking_logs WHERE check_out IS NULL",
+    );
+    const occupied = parseInt(countResult.rows[0].count, 10);
     res.render("adminDashboard.ejs", {
       logs: logs.rows,
+      occupiedAtRender: occupied,
     });
   } catch (err) {
     console.error(err);
@@ -109,7 +128,35 @@ app.get("/admin-dashboard", async (req, res) => {
 });
 
 app.get("/", async (req, res) => {
-  res.render("index.ejs");
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) FROM parking_logs WHERE check_out IS NULL",
+    );
+    const occupied = parseInt(result.rows[0].count, 10);
+    res.render("index.ejs", {
+      total: TOTAL_SPACES,
+      available: TOTAL_SPACES - occupied,
+    });
+  } catch (err) {
+    console.error("Index render error:", err);
+    res.status(500).send("Database Error");
+  }
+});
+
+app.get("/api/parking-count", async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) FROM parking_logs WHERE check_out IS NULL",
+    );
+    const occupied = parseInt(result.rows[0].count, 10);
+    res.json({
+      total: TOTAL_SPACES,
+      occupied,
+      available: TOTAL_SPACES - occupied,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/register", async (req, res) => {
