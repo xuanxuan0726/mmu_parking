@@ -47,7 +47,7 @@
         }
     </style>
 </head>
-<body>
+<body data-occupied="<%= occupiedAtRender %>">
     <h1>🚗 MMU Parking Admin Dashboard</h1>
     <div id="readerStatus" style="margin-bottom: 12px; font-size: 0.95rem; color:#333;">
         Reader Status: <span id="readerStatusValue">Checking...</span>
@@ -281,7 +281,7 @@
         // regardless of which page (kiosk or dashboard) actually drove the tap.
         // Baseline is the count at server-render time (not at first poll), so
         // any tap between page-render and the first poll still triggers a reload.
-        let lastKnownOccupied = <%= occupiedAtRender %>;
+        let lastKnownOccupied = parseInt(document.body.dataset.occupied, 10);
         async function pollCount() {
             if (!entryPollEnabled) return; // pause during registration modal
             try {
