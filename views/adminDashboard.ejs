@@ -101,11 +101,7 @@
                 <label>Card/Tag UID (Scan Card/Tag to Auto-Fill)</label>
                 <input type="text" id="card_uid" readonly placeholder="Waiting for scan...">
                 <button type="button" id="scanButton" class="btn-submit" style="margin-bottom: 10px;">📡 Manual Scan</button>
-                <button type="button" id="readButton" class="btn-submit" style="margin-bottom: 10px; background-color:#555;">📖 Read Tag Memory</button>
-                <div style="display: flex; gap: 8px;">
-                    <button type="button" id="writeBtn" class="btn-submit" disabled style="opacity: 0.5; flex: 1;">✍️ Write Tag</button>
-                    <button type="button" id="saveBtn" class="btn-submit" disabled style="opacity: 0.5; flex: 1; background-color:#28a745;">💾 Save Data</button>
-                </div>
+                <button type="button" id="saveBtn" class="btn-submit" disabled style="opacity: 0.5; background-color:#28a745;">💾 Save Data</button>
             </form>
             <p id="statusMsg" style="color: blue; text-align: center; margin-top: 10px;"></p>
         </div>
@@ -156,19 +152,10 @@
             }
         }
 
-        function setBtnEnabled(id, enabled) {
-            const b = document.getElementById(id);
+        function setSaveEnabled(enabled) {
+            const b = document.getElementById('saveBtn');
             b.disabled = !enabled;
             b.style.opacity = enabled ? '1' : '0.5';
-        }
-        function setWriteEnabled(enabled) { setBtnEnabled('writeBtn', enabled); }
-        function setSaveEnabled(enabled)  { setBtnEnabled('saveBtn',  enabled); }
-
-        // If any of the registration fields changes after a successful write,
-        // the tag no longer matches the form — re-lock Save so we never commit
-        // mismatched data to the DB.
-        for (const id of ['mmu_id', 'name', 'car_plate']) {
-            document.getElementById(id).addEventListener('input', () => setSaveEnabled(false));
         }
 
         async function openModal() {
@@ -176,7 +163,6 @@
             document.getElementById('card_uid').value = '';
             document.getElementById('statusMsg').innerText = 'Please place a new card/tag on the reader...';
             document.getElementById('statusMsg').style.color = 'blue';
-            setWriteEnabled(false);
             setSaveEnabled(false);
             entryPollEnabled = false; // pause toll-gate polling while registering
 
@@ -185,9 +171,9 @@
                 const cardUid = await fetchLastScan();
                 if (cardUid) {
                     document.getElementById('card_uid').value = cardUid;
-                    document.getElementById('statusMsg').innerText = '✅ Card detected! Write the tag, then save.';
+                    document.getElementById('statusMsg').innerText = '✅ Card detected! Fill in the user info and Save.';
                     document.getElementById('statusMsg').style.color = 'green';
-                    setWriteEnabled(true);
+                    setSaveEnabled(true);
                 }
             }, 1000);
         }
@@ -205,20 +191,19 @@
                 document.getElementById('card_uid').value = cardUid;
                 status.style.color = 'green';
                 status.innerText = '✅ Tag read successfully.';
-                setWriteEnabled(true);
+                setSaveEnabled(true);
             } else {
-                // Try manual scan
                 status.style.color = 'blue';
                 status.innerText = '🔍 Triggering manual scan...';
                 try {
                     await fetch(`${READER_API}/scan`);
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     const manualCardUid = await fetchLastScan();
                     if (manualCardUid) {
                         document.getElementById('card_uid').value = manualCardUid;
                         status.style.color = 'green';
                         status.innerText = '✅ Tag read successfully via manual scan.';
-                        setWriteEnabled(true);
+                        setSaveEnabled(true);
                     } else {
                         status.style.color = 'red';
                         status.innerText = 'No tag detected. Try repositioning the tag closer to the reader.';
@@ -230,26 +215,6 @@
             }
         });
 
-        document.getElementById('readButton').addEventListener('click', async () => {
-            const status = document.getElementById('statusMsg');
-            status.style.color = 'blue';
-            status.innerText = '📖 Reading tag user memory...';
-            try {
-                const r = await fetch(`${READER_API}/read`);
-                const data = await r.json();
-                if (data.ok) {
-                    status.style.color = 'green';
-                    status.innerText = `📖 Tag contains → Name: "${data.name}", MMU ID: "${data.mmu_id}", Plate: "${data.car_plate}"`;
-                } else {
-                    status.style.color = 'orange';
-                    status.innerText = '⚠️ Read returned no decoded payload. Raw: ' + (data.raw || data.error || 'unknown');
-                }
-            } catch (err) {
-                status.style.color = 'red';
-                status.innerText = '❌ Read failed: ' + err.message;
-            }
-        });
-
         function getFormFields() {
             return {
                 mmu_id:    document.getElementById('mmu_id').value.trim(),
@@ -258,36 +223,6 @@
                 card_uid:  document.getElementById('card_uid').value.trim(),
             };
         }
-
-        document.getElementById('writeBtn').addEventListener('click', async () => {
-            const status = document.getElementById('statusMsg');
-            const { mmu_id, name, car_plate, card_uid } = getFormFields();
-            if (!card_uid) { alert('Place a card/tag on the reader first!'); return; }
-            if (!mmu_id || !name || !car_plate) { alert('Fill MMU ID, Name and Car Plate first!'); return; }
-
-            status.style.color = 'blue';
-            status.innerText = '✍️ Writing to RFID tag...';
-            try {
-                const res = await fetch(`${READER_API}/write`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, mmu_id, car_plate })
-                });
-                const data = await res.json().catch(() => ({}));
-                if (res.ok && data.ok) {
-                    status.style.color = 'green';
-                    status.innerText = `✅ Tag written & verified (${data.bytes} bytes). You can now Save Data.`;
-                    setSaveEnabled(true);
-                } else {
-                    status.style.color = 'red';
-                    status.innerText = '❌ Tag write failed: ' + (data.error || res.statusText);
-                    setSaveEnabled(false);
-                }
-            } catch (err) {
-                status.style.color = 'red';
-                status.innerText = '❌ Reader unreachable: ' + err.message;
-            }
-        });
 
         document.getElementById('saveBtn').addEventListener('click', async () => {
             const status = document.getElementById('statusMsg');
