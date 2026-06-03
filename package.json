@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "reader": "node reader.js"
+    "reader": "node reader.js",
+    "nfc": "node nfc.js"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +20,8 @@
     "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
     "express": "^5.2.1",
-    "node-hid": "git+https://github.com/node-hid/node-hid.git",
+    "nfc-pcsc": "^0.8.1",
+    "node-hid": "^3.3.0",
     "node.js": "^0.0.1-security",
     "pg": "^8.16.3"
   },

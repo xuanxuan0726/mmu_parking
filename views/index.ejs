@@ -71,7 +71,7 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    const READER_API = 'http://localhost:4000';
+    const READER_APIS = ['http://localhost:4000', 'http://localhost:4001'];
     const countEl = document.getElementById('count');
     const totalEl = document.getElementById('total');
     const toastEl = document.getElementById('toast');
@@ -112,20 +112,26 @@
     }
 
     // ---- Toll-gate entry poller ----
-    // Read taps from the reader and call /api/entry. Server applies its own
-    // 5-second per-card cooldown so a tag left on the antenna can't bounce.
+    // Polls every bridge in parallel; any UID found triggers /api/entry.
+    // Server applies its own 5-second per-card cooldown so a tag left on
+    // either antenna can't bounce.
     async function pollEntry() {
-      try {
-        const r = await fetch(`${READER_API}/last-scan`);
-        const data = await r.json();
-        const uid = data.uid || '';
-        if (!uid) return;
-        await fetch(`/api/entry?card=${encodeURIComponent(uid)}`);
-        // Refresh count shortly after — give DB the moment it needs.
-        setTimeout(refreshCount, 300);
-      } catch (err) {
-        console.error('Entry poll failed:', err);
-      }
+      const uids = await Promise.all(READER_APIS.map(async (api) => {
+        try {
+          const r = await fetch(`${api}/last-scan`);
+          const data = await r.json();
+          return data.uid || '';
+        } catch {
+          return '';
+        }
+      }));
+      const hits = uids.filter(Boolean);
+      if (!hits.length) return;
+      await Promise.all(hits.map((uid) =>
+        fetch(`/api/entry?card=${encodeURIComponent(uid)}`).catch((err) =>
+          console.error('Entry call failed:', err))
+      ));
+      setTimeout(refreshCount, 300);
     }
 
     applyColorTier(lastAvailable, parseInt(totalEl.textContent, 10));

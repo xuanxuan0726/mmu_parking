@@ -115,6 +115,16 @@ app.get("/last-scan", (req, res) => {
   }
 });
 
+// Non-draining read for the registration modal. Returns seenAt so the
+// client can ignore stale UIDs (e.g. from a previous operator's tap).
+app.get("/peek", (req, res) => {
+  if (lastUid && Date.now() - lastSeenAt < 10_000) {
+    res.json({ uid: lastUid, seenAt: lastSeenAt });
+  } else {
+    res.json({ uid: "", seenAt: 0 });
+  }
+});
+
 app.get("/scan", async (req, res) => {
   if (!connected || !device) return res.status(503).json({ error: "Reader not connected" });
   try {
