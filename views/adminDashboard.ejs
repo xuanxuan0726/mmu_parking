@@ -169,23 +169,30 @@
             return uids.find(Boolean) || '';
         }
 
-        // Non-draining peek for the registration modal. Returns UID only if it
-        // was seen AFTER `sinceMs` — so a previous operator's tap isn't reused
-        // and the kiosk's /last-scan drain doesn't race the modal.
+        // Non-draining peek for the registration modal. Returns {uid, seenAt, source}
+        // only if a tap happened AFTER `sinceMs` — so a previous operator's tap isn't
+        // reused and the kiosk's /last-scan drain doesn't race the modal.
         async function peekFreshScan(sinceMs) {
             const results = await Promise.all(
-                Object.values(READER_APIS).map(async (api) => {
+                Object.entries(READER_APIS).map(async ([name, api]) => {
+                    const t0 = performance.now();
                     try {
                         const r = await fetch(`${api}/peek`);
-                        if (!r.ok) return null;
-                        return await r.json();
+                        const rt = performance.now() - t0;
+                        if (!r.ok) return { name, rt, data: null };
+                        const data = await r.json();
+                        return { name, rt, data };
                     } catch {
-                        return null;
+                        return { name, rt: performance.now() - t0, data: null };
                     }
                 })
             );
-            const hit = results.find(d => d && d.uid && d.seenAt > sinceMs);
-            return hit ? hit.uid : '';
+            for (const r of results) {
+                if (r.rt > 80) console.log(`[peek] ${r.name} slow RTT=${(r.rt/1000).toFixed(2)}s`);
+            }
+            const hit = results.find(r => r.data && r.data.uid && r.data.seenAt > sinceMs);
+            if (hit) return { uid: hit.data.uid, seenAt: hit.data.seenAt, source: hit.name };
+            return { uid: '', seenAt: 0, source: null };
         }
 
         function setSaveEnabled(enabled) {
@@ -204,15 +211,21 @@
             setSaveEnabled(false);
             entryPollEnabled = false; // pause toll-gate polling while registering
             modalOpenedAt = Date.now();
+            console.log(`[scan] modal opened at ${new Date(modalOpenedAt).toISOString()} — waiting for tap`);
 
             await fetchReaderStatus();
             scanInterval = setInterval(async () => {
-                const cardUid = await peekFreshScan(modalOpenedAt);
-                if (cardUid) {
-                    document.getElementById('card_uid').value = cardUid;
+                const hit = await peekFreshScan(modalOpenedAt);
+                if (hit.uid) {
+                    const now = Date.now();
+                    const bridgeToUi = ((now - hit.seenAt) / 1000).toFixed(2);
+                    const openToFill = ((now - modalOpenedAt) / 1000).toFixed(2);
+                    console.log(`[scan] ✅ AUTOFILL uid=${hit.uid} src=${hit.source} bridge→UI=${bridgeToUi}s modalOpen→fill=${openToFill}s`);
+                    document.getElementById('card_uid').value = hit.uid;
                     document.getElementById('statusMsg').innerText = '✅ Card detected! Fill in the user info and Save.';
                     document.getElementById('statusMsg').style.color = 'green';
                     setSaveEnabled(true);
+                    clearInterval(scanInterval);
                 }
             }, 150);
         }
@@ -224,10 +237,13 @@
         }
 
         document.getElementById('scanButton').addEventListener('click', async () => {
-            const cardUid = await peekFreshScan(modalOpenedAt);
+            const clickAt = Date.now();
+            console.log(`[manual-scan] clicked at ${new Date(clickAt).toISOString()}`);
+            const hit = await peekFreshScan(modalOpenedAt);
             const status = document.getElementById('statusMsg');
-            if (cardUid) {
-                document.getElementById('card_uid').value = cardUid;
+            if (hit.uid) {
+                console.log(`[manual-scan] ✅ FAST-PATH uid=${hit.uid} src=${hit.source} bridge→UI=${((Date.now()-hit.seenAt)/1000).toFixed(2)}s`);
+                document.getElementById('card_uid').value = hit.uid;
                 status.style.color = 'green';
                 status.innerText = '✅ Tag read successfully.';
                 setSaveEnabled(true);
@@ -235,19 +251,23 @@
                 status.style.color = 'blue';
                 status.innerText = '🔍 Triggering manual scan...';
                 try {
+                    const t0 = performance.now();
                     await Promise.all(
                         Object.values(READER_APIS).map((api) =>
                             fetch(`${api}/scan`).catch(() => null)
                         )
                     );
+                    console.log(`[manual-scan] /scan fan-out took ${((performance.now()-t0)/1000).toFixed(2)}s`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    const manualCardUid = await peekFreshScan(modalOpenedAt);
-                    if (manualCardUid) {
-                        document.getElementById('card_uid').value = manualCardUid;
+                    const manualHit = await peekFreshScan(modalOpenedAt);
+                    if (manualHit.uid) {
+                        console.log(`[manual-scan] ✅ uid=${manualHit.uid} src=${manualHit.source} click→fill=${((Date.now()-clickAt)/1000).toFixed(2)}s`);
+                        document.getElementById('card_uid').value = manualHit.uid;
                         status.style.color = 'green';
                         status.innerText = '✅ Tag read successfully via manual scan.';
                         setSaveEnabled(true);
                     } else {
+                        console.log(`[manual-scan] ❌ no tag after ${((Date.now()-clickAt)/1000).toFixed(2)}s`);
                         status.style.color = 'red';
                         status.innerText = 'No tag detected. Try repositioning the tag closer to the reader.';
                     }

@@ -80,9 +80,11 @@ async function initReader() {
   device.on("data", (data) => {
     const tag = parseTagPacket(data);
     if (tag) {
+      const ts = Date.now();
+      const dt = lastSeenAt ? ((ts - lastSeenAt) / 1000).toFixed(2) : "0.00";
       lastUid = tag.tagId;
-      lastSeenAt = Date.now();
-      console.log(`Tag detected: ${tag.tagId}`);
+      lastSeenAt = ts;
+      console.log(`[${new Date(ts).toISOString()}] Tag detected: ${tag.tagId} (Δ ${dt}s since last)`);
     }
   });
 
@@ -108,7 +110,9 @@ app.get("/status", (req, res) => {
 app.get("/last-scan", (req, res) => {
   if (lastUid && Date.now() - lastSeenAt < 10_000) {
     const uid = lastUid;
+    const age = ((Date.now() - lastSeenAt) / 1000).toFixed(2);
     lastUid = null;
+    console.log(`[/last-scan] DRAIN uid=${uid} age=${age}s`);
     res.json({ uid });
   } else {
     res.json({ uid: "" });

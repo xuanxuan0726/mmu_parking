@@ -23,9 +23,11 @@ nfc.on("reader", (reader) => {
   reader.on("card", (card) => {
     const uid = (card.uid || "").toUpperCase();
     if (!uid) return;
+    const ts = Date.now();
+    const dt = lastSeenAt ? ((ts - lastSeenAt) / 1000).toFixed(2) : "0.00";
     lastUid = uid;
-    lastSeenAt = Date.now();
-    console.log(`NFC card detected: ${uid}`);
+    lastSeenAt = ts;
+    console.log(`[${new Date(ts).toISOString()}] NFC card detected: ${uid} (Δ ${dt}s since last)`);
   });
 
   reader.on("error", (err) => {
@@ -56,7 +58,9 @@ app.get("/status", (req, res) => {
 app.get("/last-scan", (req, res) => {
   if (lastUid && Date.now() - lastSeenAt < 10_000) {
     const uid = lastUid;
+    const age = ((Date.now() - lastSeenAt) / 1000).toFixed(2);
     lastUid = null;
+    console.log(`[/last-scan] DRAIN uid=${uid} age=${age}s`);
     res.json({ uid });
   } else {
     res.json({ uid: "" });
