@@ -149,24 +149,32 @@
             return uhfOk || nfcOk;
         }
 
-        async function fetchLastScanFrom(api) {
+        async function fetchLastScanFrom(name, api) {
             try {
                 const response = await fetch(`${api}/last-scan`);
-                if (!response.ok) return '';
+                if (!response.ok) return { uid: '', source: name };
                 const data = await response.json();
-                return data.uid || '';
+                return { uid: data.uid || '', source: name };
             } catch {
-                return '';
+                return { uid: '', source: name };
             }
         }
 
-        // Polls every bridge in parallel and returns the first UID found.
-        // Used by the toll-gate poller (drains via /last-scan).
+        // Polls every bridge in parallel and returns the first UID + which bridge
+        // produced it. Used by the toll-gate poller (drains via /last-scan).
         async function fetchLastScan() {
-            const uids = await Promise.all(
-                Object.values(READER_APIS).map(fetchLastScanFrom)
+            const results = await Promise.all(
+                Object.entries(READER_APIS).map(([name, api]) => fetchLastScanFrom(name, api))
             );
-            return uids.find(Boolean) || '';
+            const hit = results.find(r => r.uid);
+            return hit || { uid: '', source: null };
+        }
+
+        // NFC reader produces a "Card"; UHF reader produces a "Tag".
+        function sourceLabel(src) {
+            if (src === 'NFC') return 'Card';
+            if (src === 'UHF') return 'Tag';
+            return src || 'Unknown';
         }
 
         // Non-draining peek for the registration modal. Returns {uid, seenAt, source}
@@ -328,12 +336,26 @@
 
         async function pollEntry() {
             if (!entryPollEnabled) return;
-            const uid = await fetchLastScan();
+            const { uid, source } = await fetchLastScan();
             if (!uid) return;
+            const via = sourceLabel(source);
             try {
                 const r = await fetch(`/api/entry?card=${encodeURIComponent(uid)}`);
-                const msg = await r.text();
-                console.log('Entry result:', msg);
+                const msg = (await r.text()).trim();
+                // Server replies: "Welcome <name>" | "Goodbye <name>" | "Unregistered Card" | "Cooldown ..."
+                if (msg.startsWith('Welcome ')) {
+                    const name = msg.slice('Welcome '.length);
+                    console.log(`🚗 ${name} check-in. Card/tag: ${via} (uid=${uid})`);
+                } else if (msg.startsWith('Goodbye ')) {
+                    const name = msg.slice('Goodbye '.length);
+                    console.log(`👋 ${name} check-out. Card/tag: ${via} (uid=${uid})`);
+                } else if (msg === 'Unregistered Card') {
+                    console.log(`⚠️ Unregistered ${via} scanned (uid=${uid})`);
+                } else if (msg.startsWith('Cooldown')) {
+                    // Tag still on antenna — server debounced. Skip log to avoid spam.
+                } else {
+                    console.log(`Entry result: ${msg} (via ${via}, uid=${uid})`);
+                }
             } catch (err) {
                 console.error('Entry call failed:', err);
             }

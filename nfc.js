@@ -18,16 +18,35 @@ const nfc = new NFC();
 nfc.on("reader", (reader) => {
   console.log(`NFC reader attached: ${reader.name}`);
   connected = true;
-  reader.autoProcessing = true;
+  // We only need the UID. autoProcessing=true makes the library try to read
+  // NDEF after detection, which delays the card event ~500ms-2s and throws
+  // "Cannot process ISO 14443-4 tag because AID was not set" on type-4 cards.
+  // With autoProcessing=false the card event has no .uid, so we query it
+  // ourselves via the standard PC/SC "Get UID" APDU (FF CA 00 00 00).
+  reader.autoProcessing = false;
 
-  reader.on("card", (card) => {
-    const uid = (card.uid || "").toUpperCase();
-    if (!uid) return;
-    const ts = Date.now();
-    const dt = lastSeenAt ? ((ts - lastSeenAt) / 1000).toFixed(2) : "0.00";
-    lastUid = uid;
-    lastSeenAt = ts;
-    console.log(`[${new Date(ts).toISOString()}] NFC card detected: ${uid} (Δ ${dt}s since last)`);
+  const GET_UID_APDU = Buffer.from([0xFF, 0xCA, 0x00, 0x00, 0x00]);
+
+  reader.on("card", async (card) => {
+    try {
+      const resp = await reader.transmit(GET_UID_APDU, 12);
+      // Response is <UID bytes><SW1><SW2>; success = SW1SW2 == 9000.
+      if (resp.length < 2) return;
+      const sw = resp.readUInt16BE(resp.length - 2);
+      if (sw !== 0x9000) {
+        console.error(`NFC Get-UID failed, SW=${sw.toString(16)}`);
+        return;
+      }
+      const uid = resp.slice(0, resp.length - 2).toString("hex").toUpperCase();
+      if (!uid) return;
+      const ts = Date.now();
+      const dt = lastSeenAt ? ((ts - lastSeenAt) / 1000).toFixed(2) : "0.00";
+      lastUid = uid;
+      lastSeenAt = ts;
+      console.log(`[${new Date(ts).toISOString()}] NFC card detected: ${uid} (Δ ${dt}s since last)`);
+    } catch (err) {
+      console.error(`NFC Get-UID error: ${err.message}`);
+    }
   });
 
   reader.on("error", (err) => {
