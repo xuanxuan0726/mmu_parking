@@ -9,9 +9,9 @@ const port = 3000;
 dotenv.config();
 
 // --- 1. MIDDLEWARE ---
-app.use(cors()); // Enable security clearance for frontend
+app.use(cors()); // allow EJS pages to call port 4000/4001
 app.use(express.static("public")); // Serve the HTML dashboard from the 'public' folder
-app.use(express.json()); // Allow server to read JSON from the form
+app.use(express.json()); // Parses JSON request bodies
 
 // --- 2. DATABASE CONNECTION ---
 // This configures the link to your PostgreSQL database
@@ -181,3 +181,4 @@ app.post("/api/register", async (req, res) => {
 app.listen(port, () => {
   console.log(`🅿️ MMU Parking System running at http://localhost:${port}`);
 });
+

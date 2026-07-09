@@ -45,12 +45,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function initReader() {
   console.log("Searching for MMU Parking Reader...");
   const devices = await HID.devicesAsync();
-  const info = devices.find(
-    (d) =>
-      d.vendorId === VENDOR_ID &&
-      d.productId === PRODUCT_ID &&
-      !d.path.includes("kbd"),
+  const matches = devices.filter(
+    (d) => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID,
   );
+  // The reader exposes two HID collections: a keyboard collection (MI_01,
+  // usagePage 0x0001, path ends in \KBD) and the vendor command collection
+  // (MI_00, usagePage 0xFF00). Only the vendor collection accepts hid_write.
+  // devicesAsync() order is not stable, so pick the vendor collection
+  // explicitly instead of "first non-kbd" — otherwise we sometimes open the
+  // keyboard and every write fails with "Cannot write to hid device".
+  const info =
+    matches.find((d) => d.usagePage === 0xff00) ||
+    matches.find((d) => d.interface === 0) ||
+    matches.find((d) => !/kbd/i.test(d.path || ""));
 
   if (!info) {
     throw new Error(
